@@ -23,7 +23,7 @@ Ce document ne détaille pas le code (voir `spring-security-jwt-explique.md` pou
 | **JWT (le concept)** | Un token signé, auto-suffisant (contient l'identité + une date d'expiration), que le serveur ne stocke jamais — vérifié à chaque requête via sa signature. |
 | **Filtre (`JwtAuthenticationFilter`)** | S'exécute sur *chaque* requête. Rôle unique : *identifier* (poser l'utilisateur dans le contexte si le token est valide). **Ne décide jamais** si une route est publique ou protégée. |
 | **`SecurityContextHolder`** | Le "casier" — propre à chaque requête, jamais partagé entre deux requêtes. Contient l'identité déjà vérifiée, jamais le token brut lui-même. |
-| **`SecurityConfig` / `authorizeHttpRequests`** | **C'est ici, et seulement ici**, que se décide quelle route a besoin d'être authentifiée. Séparation stricte : le filtre identifie, la config autorise. |
+| **`SecurityConfig` / `authorizeHttpRequests`** | **C'est ici, et seulement ici**, que se décide quelle route a besoin d'être authentifiée. Séparation stricte : le filtre identifie, la config autorise. **Piège à retenir** : toujours mettre `/error` en `permitAll()`, sinon une erreur HTTP générée par l'appli (409, 400...) peut être écrasée par un 403 (le forward interne vers `/error` repasse par la sécurité). |
 | **Stateless (`SessionCreationPolicy.STATELESS`)** | Spring crée des sessions par défaut — il faut explicitement dire de ne jamais le faire quand on fait du 100% token. |
 | **`@Bean` / `@Configuration`** | Un objet fabriqué une fois par Spring, réutilisable partout par injection, sans jamais faire `new` soi-même à chaque endroit. |
 

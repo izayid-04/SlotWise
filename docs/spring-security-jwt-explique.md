@@ -390,6 +390,16 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 - `.anyRequest().authenticated()` est un filet de sécurité qui attrape tout le reste : il exige que quelqu'un soit présent dans le "casier" de la requête (`SecurityContextHolder`, rempli par `JwtAuthenticationFilter` — voir section 6). Si le casier est vide, 401.
 - **L'ordre compte** : les règles sont évaluées dans l'ordre d'écriture ; les règles spécifiques doivent toujours précéder `anyRequest()`, sinon celle-ci attraperait tout avant que les règles précises n'aient leur chance.
 
+> **Piège rencontré et corrigé** : au départ, `/error` n'était pas dans la liste `permitAll()`. Résultat observé : `EmailDejaUtiliseException` (register avec un email déjà utilisé) renvoyait un **403** vide au lieu du **409** attendu.
+>
+> **Cause exacte** (confirmée via les logs Spring Security en `DEBUG`) : quand Spring MVC résout une exception via `@ResponseStatus` (ex: 409), ça déclenche en coulisses un **forward interne vers `/error`** (le mécanisme de page d'erreur par défaut de Spring Boot, `BasicErrorController`). Cette requête interne **repasse par toute la chaîne de filtres de sécurité**, comme n'importe quelle requête. Comme `/error` ne correspondait à aucune règle `permitAll()`, elle tombait dans `.anyRequest().authenticated()` → rejetée en 403 (par `Http403ForbiddenEntryPoint`, faute d'authentification) → **ce 403 écrasait le 409 déjà calculé**, avant qu'il n'atteigne le client.
+>
+> **Correctif** : ajouter `/error` aux routes publiques :
+> ```java
+> .requestMatchers("/auth/**", "/error").permitAll()
+> ```
+> **Leçon générale** : `/error` doit (quasi) toujours être explicitement autorisée dans une config Spring Security, sinon *toute* erreur HTTP générée par l'appli (pas seulement celle-ci) risque d'être masquée par un 403 à cause de ce forward interne.
+
 Important : le casier ne contient **jamais le token JWT brut**. Une fois vérifié par le filtre, le token n'est conservé nulle part — le casier ne contient que l'identité (`UserDetails`) et les rôles de la personne, construits à partir du token, pas le token lui-même. Cohérent avec l'approche stateless : rien n'est retenu après la requête.
 
 **`.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)`** — Spring Security fait en réalité tourner toute une **chaîne** de filtres empilés (d'où `SecurityFilterChain`), la plupart fournis par défaut et invisibles. `UsernamePasswordAuthenticationFilter` est le filtre par défaut prévu pour une connexion classique par formulaire HTML — non utilisé ici, mais présent quand même dans la chaîne par défaut. `addFilterBefore(X, Y)` insère X juste avant Y dans l'ordre d'exécution : ça garantit que le filtre JWT du projet s'exécute tôt, avant les mécanismes par défaut de Spring Security.
