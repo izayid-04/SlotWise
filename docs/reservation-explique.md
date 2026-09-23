@@ -108,6 +108,34 @@ Rappel du "casier" (`SecurityContextHolder`) rempli par `JwtAuthenticationFilter
 
 **C'est le même casier, le même mécanisme, partout dans l'appli** — rempli une seule fois par `JwtAuthenticationFilter`, lisible depuis n'importe quel contrôleur ensuite.
 
+## `findAll()` — la vue admin bonus (ajoutée avec les permissions par rôle)
+
+```java
+public List<Reservation> findAll(Long ressourceId, LocalDateTime debut, LocalDateTime fin) {
+    return reservationRepository.findAll().stream()
+            .filter(reservation -> ressourceId == null || reservation.getRessource().getId().equals(ressourceId))
+            .filter(reservation -> debut == null || !reservation.getDateFin().isBefore(debut))
+            .filter(reservation -> fin == null || !reservation.getDateDebut().isAfter(fin))
+            .toList();
+}
+```
+
+Contrairement à `create`/`findMyReservations`/`cancel`, cette méthode ne fait **aucune requête dérivée custom** — elle réutilise `findAll()` (gratuit, fourni par `JpaRepository`) puis filtre **en mémoire, côté Java**, avec des streams (déjà utilisés dans les contrôleurs pour `.map(...).toList()`).
+
+Les 3 filtres sont **optionnels** (`ressourceId`, `debut`, `fin` peuvent être `null`) : `ressourceId == null || ...` veut dire *"si le filtre n'est pas fourni, on garde tout ; sinon, on applique la condition"*. Volontairement simple plutôt que d'utiliser des Spring Data Specifications ou du `@Query` dynamique (des mécanismes plus avancés, pas nécessaires pour une feature bonus).
+
+Le contrôleur expose ces filtres via des `@RequestParam(required = false)` :
+```java
+@GetMapping
+public ResponseEntity<List<ReservationResponse>> findAll(
+        @RequestParam(required = false) Long ressourceId,
+        @RequestParam(required = false) LocalDateTime debut,
+        @RequestParam(required = false) LocalDateTime fin) { ... }
+```
+`required = false` : le paramètre est optionnel dans l'URL (`GET /reservations`, `GET /reservations?ressourceId=3`, `GET /reservations?debut=...&fin=...` — toutes valides).
+
+**Restreinte à `ADMIN`** dans `SecurityConfig` (`GET /reservations` exact, sans `/**`, donc ne touche pas `GET /reservations/mes-reservations` qui est un chemin différent).
+
 ## Testé et vérifié (curl) — cycle complet
 
 | Test | Attendu | Résultat |
@@ -122,4 +150,4 @@ Rappel du "casier" (`SecurityContextHolder`) rempli par `JwtAuthenticationFilter
 | User1 annule sa propre réservation | 204 | ✅ |
 | Statut après annulation | `ANNULEE` (pas supprimée) | ✅ |
 
-> Comme pour `Ressource`, aucune restriction par rôle pour l'instant. La vue admin bonus (`GET /reservations`, toutes réservations confondues) n'est pas encore implémentée — prévue avec l'étape "permissions par rôle".
+> Permissions par rôle maintenant en place : `POST`/`GET mes-reservations`/`DELETE` accessibles à tout utilisateur connecté (`ADMIN` ou `USER`, conforme au cahier des charges "USER connecté"), `GET /reservations` (vue admin, avec filtrage) réservé à `ADMIN`.

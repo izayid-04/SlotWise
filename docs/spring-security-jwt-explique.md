@@ -1,3 +1,5 @@
+
+
 # Spring Security + JWT expliqué (SlotWise)
 
 Ce document reprend, fichier par fichier, l'implémentation actuelle de l'authentification dans SlotWise. Il sert de mémo personnel pour se rappeler *pourquoi* chaque fichier existe et *comment* il fonctionne, sans avoir à tout redécouvrir.
@@ -403,6 +405,63 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 Important : le casier ne contient **jamais le token JWT brut**. Une fois vérifié par le filtre, le token n'est conservé nulle part — le casier ne contient que l'identité (`UserDetails`) et les rôles de la personne, construits à partir du token, pas le token lui-même. Cohérent avec l'approche stateless : rien n'est retenu après la requête.
 
 **`.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)`** — Spring Security fait en réalité tourner toute une **chaîne** de filtres empilés (d'où `SecurityFilterChain`), la plupart fournis par défaut et invisibles. `UsernamePasswordAuthenticationFilter` est le filtre par défaut prévu pour une connexion classique par formulaire HTML — non utilisé ici, mais présent quand même dans la chaîne par défaut. `addFilterBefore(X, Y)` insère X juste avant Y dans l'ordre d'exécution : ça garantit que le filtre JWT du projet s'exécute tôt, avant les mécanismes par défaut de Spring Security.
+
+### Les permissions par rôle (ajoutées après `Ressource`/`Reservation`)
+
+Une fois `Ressource` en place avec de vraies routes à protéger, on a complété `authorizeHttpRequests` pour respecter le cahier des charges : lecture (`GET /ressources`) ouverte à tout utilisateur connecté, écriture (`POST`/`PUT`/`DELETE`) réservée aux `ADMIN`.
+
+```java
+.authorizeHttpRequests(auth -> auth
+        .requestMatchers("/auth/**", "/error").permitAll()
+        .requestMatchers(HttpMethod.GET, "/ressources").authenticated()
+        .requestMatchers(HttpMethod.POST, "/ressources").hasRole("ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/ressources/**").hasRole("ADMIN")
+        .requestMatchers(HttpMethod.DELETE, "/ressources/**").hasRole("ADMIN")
+        .anyRequest().authenticated()
+)
+```
+
+**`.requestMatchers(HttpMethod.GET, "/ressources")`** — nouveauté par rapport à `.requestMatchers("/auth/**")` (un seul paramètre, donc toutes les méthodes HTTP) : ici on cible **une méthode HTTP précise** en premier paramètre (`HttpMethod`, un enum Spring, comme `HttpStatus`). Cette règle ne s'applique qu'aux requêtes `GET` vers `/ressources` — pas aux `POST`/`PUT`/`DELETE` sur ce même chemin, qui sont gérés par des règles séparées juste après. `.authenticated()` = "il faut être connecté", peu importe le rôle.
+
+**`.requestMatchers(HttpMethod.POST, "/ressources").hasRole("ADMIN")`** — `hasRole("ADMIN")` exige, en plus d'être authentifié, que l'utilisateur possède le rôle `ADMIN`. Ça se raccroche directement à `UtilisateurDetailsService`, vu plus haut : `.authorities(List.of(new SimpleGrantedAuthority("ROLE_" + utilisateur.getRole().name())))` — `hasRole("ADMIN")` compare en réalité à `"ROLE_ADMIN"` (Spring ajoute lui-même le préfixe `ROLE_`), donc si l'utilisateur a `Role.ADMIN` en base, son `UserDetails` porte bien `"ROLE_ADMIN"`, et cette règle le laisse passer.
+
+**`.requestMatchers(HttpMethod.PUT, "/ressources/**")` / `DELETE`** — même principe que `POST`, avec `"/ressources/**"` (et non `"/ressources"`) car ces routes incluent un id dans l'URL (`PUT /ressources/3`) — le joker `**` couvre ce suffixe variable.
+
+**L'ordre reste important** : ces 4 règles précises sont toutes placées **avant** `.anyRequest().authenticated()`, pour la même raison qu'avec `/auth/**` — sinon la règle générale les court-circuiterait.
+
+Testé et vérifié (`curl`, avec un utilisateur `USER` normal et un utilisateur promu `ADMIN` directement en base) :
+
+| Route | USER | ADMIN |
+|---|---|---|
+| `GET /ressources` | 200 | 200 |
+| `GET /ressources` sans token | 403 | — |
+| `POST /ressources` | 403 | 201 |
+| `PUT /ressources/{id}` | 403 | 200 |
+| `DELETE /ressources/{id}` | 403 | 204 |
+
+### Les mêmes règles, étendues à `/reservations`
+
+Complétées en même temps que la vue admin bonus de `Reservation` :
+
+```java
+.requestMatchers(HttpMethod.POST, "/reservations").authenticated()
+.requestMatchers(HttpMethod.GET, "/reservations/mes-reservations").authenticated()
+.requestMatchers(HttpMethod.DELETE, "/reservations/**").authenticated()
+.requestMatchers(HttpMethod.GET, "/reservations").hasRole("ADMIN")
+```
+
+Point important à ne pas manquer : `"/reservations"` (sans `/**`) est un **chemin exact**, différent de `"/reservations/mes-reservations"` — ce ne sont pas deux règles qui se chevauchent ou qui pourraient entrer en conflit, ce sont deux chemins complètement distincts pour Spring. `GET /reservations` (vue admin, toutes réservations) est donc bien la seule route `/reservations` réservée à `ADMIN` ; les 3 autres (`POST`, `GET mes-reservations`, `DELETE`) restent ouvertes à tout utilisateur connecté, conforme au cahier des charges ("USER connecté").
+
+**Sur le choix explicite vs implicite** : techniquement, `POST /reservations`, `GET /reservations/mes-reservations` et `DELETE /reservations/**` auraient pu ne pas être déclarées du tout — elles seraient quand même tombées dans `.anyRequest().authenticated()` avec exactement le même résultat. On les a quand même écrites explicitement, pour que **toutes** les règles concernant `/reservations` soient regroupées et lisibles d'un coup d'œil, plutôt que de laisser deviner leur comportement via le filet général tout en bas. Compromis délibéré : plus de lignes, mais moins d'ambiguïté sur une config de sécurité.
+
+Testé et vérifié :
+
+| Route | USER | ADMIN |
+|---|---|---|
+| `POST /reservations` | 201 | 201 |
+| `GET /reservations/mes-reservations` | 200 | 200 |
+| `DELETE /reservations/{id}` (sa propre réservation) | 204 | 204 |
+| `GET /reservations` (vue admin) | 403 | 200, avec filtrage `?ressourceId=`/`?debut=`/`?fin=` |
 
 ### Résumé du fichier
 

@@ -1,5 +1,6 @@
 package com.izayid.slotwise.reservation;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.izayid.slotwise.reservation.dto.ReservationRequest;
@@ -39,6 +41,18 @@ public class ReservationController {
     @GetMapping("/mes-reservations")
     public ResponseEntity<List<ReservationResponse>> findMyReservations(@AuthenticationPrincipal UserDetails userDetails) {
         List<ReservationResponse> reservations = reservationService.findMyReservations(userDetails.getUsername()).stream()
+                .map(ReservationResponse::fromEntity)
+                .toList();
+
+        return ResponseEntity.ok(reservations);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ReservationResponse>> findAll(
+            @RequestParam(required = false) Long ressourceId,
+            @RequestParam(required = false) LocalDateTime debut,
+            @RequestParam(required = false) LocalDateTime fin) {
+        List<ReservationResponse> reservations = reservationService.findAll(ressourceId, debut, fin).stream()
                 .map(ReservationResponse::fromEntity)
                 .toList();
 

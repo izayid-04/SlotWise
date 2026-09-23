@@ -1,5 +1,6 @@
 package com.izayid.slotwise.reservation;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -58,6 +59,14 @@ public class ReservationService {
                 .orElseThrow(() -> new UsernameNotFoundException("Aucun utilisateur avec l'email : " + emailUtilisateurConnecte));
 
         return reservationRepository.findByUtilisateurId(utilisateur.getId());
+    }
+
+    public List<Reservation> findAll(Long ressourceId, LocalDateTime debut, LocalDateTime fin) {
+        return reservationRepository.findAll().stream()
+                .filter(reservation -> ressourceId == null || reservation.getRessource().getId().equals(ressourceId))
+                .filter(reservation -> debut == null || !reservation.getDateFin().isBefore(debut))
+                .filter(reservation -> fin == null || !reservation.getDateDebut().isAfter(fin))
+                .toList();
     }
 
     public void cancel(Long id, String emailUtilisateurConnecte) {
