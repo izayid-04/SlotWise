@@ -463,6 +463,14 @@ Testé et vérifié :
 | `DELETE /reservations/{id}` (sa propre réservation) | 204 | 204 |
 | `GET /reservations` (vue admin) | 403 | 200, avec filtrage `?ressourceId=`/`?debut=`/`?fin=` |
 
+### Routes Swagger (ajoutées avec l'intégration OpenAPI)
+
+```java
+.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+```
+
+Même principe que `/error` : une route chargée par le navigateur **avant** toute authentification doit être publique. Sans ça, impossible de charger la page Swagger pour obtenir un token — il faudrait déjà être authentifié pour voir la page qui permet de s'authentifier. Détail dans `swagger-openapi-explique.md`.
+
 ### Résumé du fichier
 
 `filterChain` assemble 4 réglages : pas de CSRF (inutile en JWT stateless), pas de session (stateless), les règles d'accès par route (`/auth/**` libre, le reste protégé — en lisant le casier rempli par `JwtAuthenticationFilter`), et l'insertion du filtre JWT dans la chaîne globale de Spring Security.
