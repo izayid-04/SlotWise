@@ -1,0 +1,127 @@
+### Variables
+@baseUrl = http://localhost:8080
+
+### ============================================================
+### AUTH
+### ============================================================
+
+### Inscription
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "nom": "Test User",
+  "email": "test.user@mail.com",
+  "motDePasse": "motdepasse123"
+}
+
+### Connexion (le token est capturé pour les requêtes suivantes)
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test.user@mail.com",
+  "motDePasse": "motdepasse123"
+}
+
+
+### ============================================================
+### RESSOURCES
+### ============================================================
+### Note : POST/PUT/DELETE nécessitent un compte ADMIN
+### (promouvoir un utilisateur en base : UPDATE utilisateurs SET role = 'ADMIN' WHERE email = '...')
+
+### Lister toutes les ressources (tout utilisateur connecté)
+GET {{baseUrl}}/ressources
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Créer une ressource (ADMIN uniquement)
+# @name creerRessource
+POST {{baseUrl}}/ressources
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "nom": "Salle A",
+  "description": "Salle de réunion, 10 personnes",
+  "capacite": 10,
+  "disponible": true
+}
+
+### Modifier une ressource (ADMIN uniquement)
+PUT {{baseUrl}}/ressources/{{creerRessource.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "nom": "Salle A modifiée",
+  "description": "Salle de réunion, 12 personnes",
+  "capacite": 12,
+  "disponible": true
+}
+
+### Supprimer une ressource (ADMIN uniquement)
+DELETE {{baseUrl}}/ressources/{{creerRessource.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+
+
+### ============================================================
+### RESERVATIONS
+### ============================================================
+
+### Créer une ressource de test pour les réservations ci-dessous
+# @name creerRessourcePourReservation
+POST {{baseUrl}}/ressources
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "nom": "Salle B",
+  "description": "Pour tester les réservations",
+  "capacite": 5,
+  "disponible": true
+}
+
+### Créer une réservation (tout utilisateur connecté)
+# @name creerReservation
+POST {{baseUrl}}/reservations
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "ressourceId": {{creerRessourcePourReservation.response.body.$.id}},
+  "dateDebut": "2026-12-01T10:00:00",
+  "dateFin": "2026-12-01T11:00:00"
+}
+
+### Même ressource, créneau chevauchant -> 409 Conflict attendu
+POST {{baseUrl}}/reservations
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "ressourceId": {{creerRessourcePourReservation.response.body.$.id}},
+  "dateDebut": "2026-12-01T10:30:00",
+  "dateFin": "2026-12-01T11:30:00"
+}
+
+### Lister mes réservations
+GET {{baseUrl}}/reservations/mes-reservations
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Annuler ma réservation (statut -> ANNULEE, pas supprimée)
+DELETE {{baseUrl}}/reservations/{{creerReservation.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Vue admin : toutes les réservations, tous utilisateurs confondus (ADMIN uniquement)
+GET {{baseUrl}}/reservations
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Vue admin filtrée par ressource
+GET {{baseUrl}}/reservations?ressourceId={{creerRessourcePourReservation.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Vue admin filtrée par période
+GET {{baseUrl}}/reservations?debut=2026-12-01T00:00:00&fin=2026-12-31T23:59:59
+Authorization: Bearer {{login.response.body.$.token}}

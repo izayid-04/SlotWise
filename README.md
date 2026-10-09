@@ -26,6 +26,7 @@ L'appli démarre sur `http://localhost:8080`, après que PostgreSQL soit prêt (
 
 - Doc interactive de l'API : `http://localhost:8080/swagger-ui/index.html`
 - Spec OpenAPI brute : `http://localhost:8080/v3/api-docs`
+- Exemples de requêtes prêts à l'emploi : [`requests.http`](./requests.http) (exécutable directement dans IntelliJ IDEA / VS Code avec l'extension REST Client)
 
 ## Schéma de la base de données
 
