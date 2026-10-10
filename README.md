@@ -111,5 +111,6 @@ Chaque brique du projet est expliquée en détail (code, concepts, pièges renco
 - `tests-junit-mockito-explique.md` — tests unitaires
 - `docker-explique.md` — conteneurisation
 - `swagger-openapi-explique.md` — documentation API interactive
+- `ci-cd-explique.md` — intégration continue (GitHub Actions)
 
 Chaque sujet a aussi une version condensée (`*-concepts-cles.md`) listant juste l'essentiel à retenir.
